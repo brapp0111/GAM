@@ -38,6 +38,7 @@ If an item contains spaces, it should be surrounded by ".
 	papayawhip|peachpuff|peru|pink|plum|powderblue|purple|red|rosybrown|royalblue|
 	saddlebrown|salmon|sandybrown|seagreen|seashell|sienna|silver|skyblue|slateblue|slategray|slategrey|snow|springgreen|steelblue|
 	tan|teal|thistle|tomato|turquoise|violet|wheat|white|whitesmoke|yellow|yellowgreen
+<DayOfWeek> ::= mon|tue|wed|thu|fri|sat|sun
 <FileFormat> ::=
 	csv|html|txt|tsv|jpeg|jpg|png|svg|pdf|rtf|pptx|xlsx|docx|odt|ods|openoffice|ms|microsoft|micro$oft
 <LabelColorHex> ::=
@@ -74,6 +75,13 @@ If an item contains spaces, it should be surrounded by ".
 	Google-Drive-storage|
 	Google-Vault|
 	101001|101005|101031
+<ProductID> ::=
+	Google-Apps|
+	Google-Chrome-Device-Management|
+	Google-Coordinate|
+	Google-Drive-storage|
+	Google-Vault|
+	101001|101005|101006|101031|101033|101034
 <SKUID> ::=
 	cloudidentity|identity|1010010001|
 	cloudidentitypremium|identitypremium|1010050001|
@@ -81,11 +89,13 @@ If an item contains spaces, it should be surrounded by ".
 	gafb|gafw|basic|gsuitebasic|Google-Apps-For-Business|
 	gafg|gsuitegovernment|gsuitegov|Google-Apps-For-Government|
 	gams|postini|gsuitegams|gsuitepostini|gsuitemessagesecurity|Google-Apps-For-Postini|
-	gal|lite|gsuitelite|Google-Apps-Lite|
-	gau|unlimited|gsuitebusiness|Google-Apps-Unlimited|
-	gae|enterprise|gsuiteenterprise|1010020020|
+	gal|gsl|lite|gsuitelite|Google-Apps-Lite|
+	gau|gsb|unlimited|gsuitebusiness|Google-Apps-Unlimited|
+	gae|gse|enterprise|gsuiteenterprise|1010020020|
 	gsefe|e4e|gsuiteenterpriseeducation|1010310002|
 	gsefes|e4es|gsuiteenterpriseeducationstudent|1010310003|
+	gsbau|businessarchived|gsuitebusinessarchived|
+	gseau|enterprisearchived|gsuiteenterprisearchived|
 	chrome|cdm|googlechromedevicemanagement|Google-Chrome-Device-Management|
 	coordinate|googlecoordinate|Google-Coordinate|
 	d4e|driveenterprise|drive4enterprise|
@@ -131,9 +141,11 @@ If an item contains spaces, it should be surrounded by ".
 
 <AccessToken> ::= <String>
 <ACLScope> ::= [user:]<EmailAddress>|group:<EmailAddress>|domain[:<DomainName>]|default
+<APIScopeURL> ::= <String>
 <ASPID> ::= <String>
 <BuildingID> ::= <String>|id:<String>
 <CalendarACLRole> ::= editor|freebusy|freebusyreader|owner|reader|writer
+<CalendarACLRuleID> ::= user:<EmailAddress>|group:<EmailAddress>|domain:<DomainName>|default
 <CalendarColorIndex> ::= <Number in range 1-24>
 <CalendarItem> ::= <EmailAddress>|<String>
 <ChatRoom> ::= <String>
@@ -211,6 +223,7 @@ If an item contains spaces, it should be surrounded by ".
 <SchemaName> ::= <String>
 <Section> ::= <String>
 <SerialNumber> ::= <String>
+<ServiceAccountKey> ::= <String>
 <S/MIMEID> ::= <String>	
 <SMTPHostName> ::= <String>
 <StudentItem> ::= <EmailAddress>|<UniqueID>|<String>
@@ -247,16 +260,20 @@ If an item contains spaces, it should be surrounded by ".
 	annotatedassetid|assedid|asset|
 	annotatedlocation|location|
 	annotateduser|user|
+	autoupdateexpiration|
 	bootmode|
 	cpustatusreports|
 	devicefiles|
 	deviceid|
 	diskvolumereports|
+	dockmacaddress|
 	ethernetmacaddress|
+	ethernetmacaddress0|
 	firmwareversion|
 	lastenrollmenttime|
 	lastsync|
 	macaddress|
+	manufacturedate|
 	meid|
 	model|
 	notes|
@@ -289,6 +306,7 @@ If an item contains spaces, it should be surrounded by ".
 	cancomment|
 	canreadrevisions|
 	copyable|
+	copyrequireswriterpermission|
 	createddate|createdtime|
 	description|
 	editable|
@@ -511,6 +529,8 @@ If an item contains spaces, it should be surrounded by ".
 	phones|phone|
 	posixaccounts|posix|
 	primaryemail|username|
+	recoveryemail|
+	recoveryphone|
 	relations|relation|
 	ssh|sshkeys|sshpublickeys|
 	suspended|
@@ -535,6 +555,7 @@ Items, separated by spaces, with spaces, commas or single quotes in the items th
     "'it em' 'it,em' \"it'em\""
 
 <ACLList> ::= "<ACLScope>(,<ACLScope>)*"
+<APIScopeURLList> ::= "<APIScopeURL>(,<APIScopeURL>)*"
 <ASPIDList> ::= "<ASPID>(,<ASPID>)*"
 <CalendarList> ::= "<CalendarItem>(,<CalendarItem>)*"
 <ChatRoomList> ::= "<ChatRoom>(,<ChatRoom>)*"
@@ -573,6 +594,7 @@ Items, separated by spaces, with spaces, commas or single quotes in the items th
 <SKUIDList> ="<SKUID>(,<SKUID>)*"
 <SchemaNameList> ::= "<SchemaName>(,<SchemaName>)*"
 <SerialNumberList> ::= "<SerialNumber>(,<SerialNumber>)*"
+<ServiceAccountKeyList> ::= "<ServiceAccountKey>(,<ServiceAccountKey>)*"
 <TeamDriveIDList> ::= "<TeamDriveID>(,<TeamDriveID>)*"
 <UserFieldNameList> ::= "<UserFieldName>(,<UserFieldName>)*"
 <UserList> ::= "<UserItem>(,<UserItem>)*"
@@ -654,24 +676,18 @@ Specify a collection of Users by directly specifying them or by specifiying item
 
 <DriveFileAddAttributes> ::=
 	(localfile <FileName>)|
-	(convert)|(ocr)|(ocrlanguage <Language>)|(restricted|restrict)|(starred|star)|(trashed|trash)|(viewed|view)|
+	(convert)|(ocr)|(ocrlanguage <Language>)|
+	(restricted|restrict)|(starred|star)|(trashed|trash)|(viewed|view)|
+	copyrequireswriterpermission|
 	(lastviewedbyme <Time>)|(modifieddate|modifiedtime <Time>)|(description <String>)|(mimetype <MimeType>)|
 	(parentid <DriveFolderID>)|(parentname <DriveFolderName>)|(anyownerparentname <DriveFolderName>)|writerscantshare
 <DriveFileUpdateAttributes> ::=
 	(localfile <FileName>)|
-	(convert)|(ocr)|(ocrlanguage <Language>)|(restricted|restrict <Boolean>)|(starred|star <Boolean>)|(trashed|trash <Boolean>)|(viewed|view <Boolean>)|
+	(convert)|(ocr)|(ocrlanguage <Language>)|
+	(restricted|restrict <Boolean>)|(starred|star <Boolean>)|(trashed|trash <Boolean>)|(viewed|view <Boolean>)|
+	(copyrequireswriterpermission <Boolean>)|
 	(lastviewedbyme <Time>)|(modifieddate <Time>)|(description <String>)|(mimetype <MimeType>)|
 	(parentid <DriveFolderID>)|(parentname <DriveFolderName>)|(anyownerparentname <DriveFolderName>)|writerscantshare
-<EventAttributes> ::=
-	(anyonecanaddself)|(guestscantinviteothers)|(guestscantseeothers)|(notifyattendees)|(available)|(visibility default|public|prvate)|(tentative)|
-	(attendee <EmailAddress>)|(optionalattendee <EmailAddress>)|
-	(description <String>)|(summary <String>)|(location <String>)|(id <String>)|
-	(source <String> <URL>)|(privateproperty <PropertyKey> <PropertyValue>)|(sharedproperty <PropertyKey> <PropertyValue>)|
-	(recurrence <RRULE, EXRULE, RDATE and EXDATE line>)|
-	(start allday <Date>)|(start <Time>)|(end allday <Date>)|(end <Time>)|(timezone <Timezone>)|
-	(noreminders|(reminder <Number> email|popup|sms))|
-	(colorindex|colorid <EventColorIndex>)
-
 <GroupSettingsAttribute> ::=
 	(allowexternalmembers <Boolean>)|
 	(allowwebposting <Boolean>)|
@@ -776,6 +792,8 @@ Specify a collection of Users by directly specifying them or by specifiying item
 	(note clear|([text_html|text_plain] <String>|(file <FileName> [charset <Charset>])))|
 	(org|ou|orgunitpath <OrgUnitPath>)
 	(password random|<Password>)|
+	(recoveryemail <EmailAddress>)|
+	(recoveryphone <string>)|
 	(suspended <Boolean>)|
 	(<SchemaName>.<FieldName> [multivalued|multivalue|value|multinonempty [type home|other|work|(custom <String>)]] <String>)
 <UserMultiAttributes> ::=
@@ -799,7 +817,7 @@ Specify a collection of Users by directly specifying them or by specifiying item
 	<UserBasicAttribute>|
 	<UserMultiAttribute>
 
-gam version [check] [simple]
+gam version [check|checkrc|simple|extended] [timeoffset] [location <HostName>]
 gam help
 
 gam batch <FileName>|- [charset <Charset>]
@@ -813,17 +831,25 @@ Example: gam csv Users.csv gam update user "~primaryEmail" address type work uns
 Each user (~primaryEmail, e.g. foo@bar.com) would have their work address updated
 
 gam create project [<EmailAddress>] [<ProjectID>]
+gam create project [admin <EmailAddress>] [project <ProjectID>] [parent <String>]
 gam use project [<EmailAddress>] [<ProjectID>]
+gam use project [admin <EmailAddress>] [project <ProjectID>]
 gam update project [<EmailAddress>] [gam|<ProjectID>|(filter <String>)]
 gam delete project [<EmailAddress>] [gam|<ProjectID>|(filter <String>)]
 gam show projects [<EmailAddress>] [all|gam|<ProjectID>|(filter <String>)]
 gam print projects [<EmailAddress>] [all|gam|<ProjectID>|(filter <String>)] [todrive]
 
+gam rotate sakey|sakeys [retain_none|retain_existing|replace_current]
+         [(algorithm KEY_ALG_RSA_1024|KEY_ALG_RSA_2048)|(localkeysize 1024|2048|4096)]
+gam delete sakey|sakeys <ServiceAccountKeyList>+ [doit]
+gam show sakey|sakeys [all|system|user]
+
 gam oauth|oauth2 create|request [<EmailAddress>]
 gam oauth|oauth2 delete|revoke
-gam oauth|oauth2 info|verify [<AccessToken>]
+gam oauth|oauth2 info|verify [accesstoken <AccessToken>] [idtoken <IDToken>] [showsecret]
+gam oauth|oauth2 refresh
 
-gam <UserTypeEntity> check serviceaccount
+gam <UserTypeEntity> check serviceaccount [scope|scopes <APIScopeURLList>]
 
 gam whatis <EmailItem>
 
@@ -855,6 +881,25 @@ gam update resoldsubscription <CustomerID> <SKUID>
 gam delete resoldsubscription <CustomerID> <SKUID> cancel|downgrade|transfer_to_direct
 gam info resoldsubscriptions <CustomerID> [customer_auth_token <String>]
 
+<ActivityApplicationName> ::=
+	access|accesstransparency|
+	admin|
+	calendar|calendars|
+	chat|
+	drive|doc|docs|
+	enterprisegroups|groupsenterprise|
+	gcp|
+	google+|gplus|
+	group|groups|
+	hangoutsmeet|meet|
+	jamboard|
+	login|logins|
+	mobile|
+	oauthtoken|token|tokens|
+	rules|
+	saml|
+	useraccounts
+
 <ReportsApp> ::=
 	accounts|
 	app_maker|
@@ -870,12 +915,28 @@ gam info resoldsubscriptions <CustomerID> [customer_auth_token <String>]
 	sites
 <ReportsAppList> ::= "<ReportsApp>(,<ReportsApp>)*"
 
-gam report users|user [todrive] [date <Date>] [fulldatarequired all|<ReportsAppList>]
-	[(user all|<UserItem>)|(orgunit|org|ou <OrgUnitPath>)] [filter|filters <String>] [fields|parameters <String>]
-gam report customers|customer|domain [todrive] [date <Date>] [fulldatarequired all|<ReportsAppList>]
+gam report usageparameters customer|user [todrive]
+gam report usage user [todrive]
+	[<UserTypeItem>)|(orgunit|org|ou <OrgUnitPath>)]
+	[startdate <Date>] [enddate <Date>]
+	[skipdates <Date>(,<Date>)*] [skipdaysofweek <DayOfWeek>(,<DayOfWeek>)*]
 	[fields|parameters <String>]
-gam report admin|calendar|calendars|drive|docs|doc|groups|group|logins|login|mobile|tokens|token [todrive]
-	[start <Time>] [end <Time>] [(user all|<UserItem>)] [event <String>] [filter|filters <String>] [ip <String>]
+gam report usage customer [todrive]
+	[startdate <Date>] [enddate <Date>]
+	[skipdates <Date>(,<Date>)*] [skipdaysofweek <DayOfWeek>(,<DayOfWeek>)*]
+	[fields|parameters <String>]
+
+gam report users|user [todrive]
+	[(user <UserItem>)|(orgunit|org|ou <OrgUnitPath>)]
+	[date <Date>] [fulldatarequired all|<ReportsAppList>]
+	[filter|filters <String>] [fields|parameters <String>]
+gam report customers|customer|domain [todrive]
+	[date <Date>] [fulldatarequired all|<ReportsAppList>]
+	[fields|parameters <String>]
+gam report <ActivityApplicationName> [todrive]
+	[user all|<UserItem>]
+	[start <Time>] [end <Time>]
+	[filter|filters <String>] [event <String>] [ip <String>]
 
 gam create admin <UserItem> <RoleItem> customer|(org_unit <OrgUnitItem>)
 gam delete admin <RoleAssignmentId>
@@ -939,11 +1000,63 @@ gam print aliases|nicknames [todrive] [shownoneditable] [nogroups] [nousers] [(q
 gam calendar <CalendarItem> add <CalendarACLRole> ([user] <EmailAddress>)|(group <EmailAddress>)|(domain [<DomainName>])|default [sendnotifications <Boolean>]
 gam calendar <CalendarItem> update <CalendarACLRole> ([user] <EmailAddress>)|(group <EmailAddress>)|(domain [<DomainName>])|default [sendnotifications <Boolean>]
 gam calendar <CalendarItem> del|delete <CalendarACLRole> <EmailAddress>|(domain [<DomainName>])|default
+gam calendar <CalendarItem> del|delete id <CalendarACLRuleID>
 gam calendar <CalendarItem> showacl
+gam calendar <CalendarItem> printacl [todrive]
 
-gam calendar <CalendarItem> addevent <EventAttributes>+
-gam calendar <CalendarItem> deleteevent (id|eventid <EventID>)* (query|eventquery <QueryCalendar>)* [doit] [notifyattendees]
+<EventNotificationAttribute> ::=
+	notifyattendees|(sendnotifications <Boolean>)|(sendupdates all|enternalonly|none)
+
+The following attributes are equivalent:
+	notifyattendees - sendupdates all
+	sendnotifications false - sendupdates none
+	sendnotifications true - sendupdates all
+
+<EventAttributes> ::=
+	anyonecanaddself|
+	(attendee <EmailAddress>)|
+	available|
+	(colorindex|colorid <EventColorIndex>)
+	(description <String>)|
+	(end (allday <Date>)|<Time>)|
+	guestscantinviteothers|
+	guestscantseeothers|
+	hangoutsmeet|
+	(location <String>)|
+	(noreminders| (reminder <Number> email|popup|sms))|
+	(optionalattendee <EmailAddress>)|
+	(privateproperty <PropertyKey> <PropertyValue>)|
+	(recurrence <RRULE, EXRULE, RDATE and EXDATE line>)|
+	(sharedproperty <PropertyKey> <PropertyValue>)|
+	(source <String> <URL>)|
+	(start (allday <Date>)|<Time>)|
+	(summary <String>)|
+	tentative|
+	(timezone <Timezone>)|
+	(visibility default|public|prvate)
+
+<EventUpdateAttributes> ::=
+	<EventAttributes>|
+	(removeattendee <EmailAddress>)|
+	(replacedescription <RegularExpression> <String>)
+
+<EventSelectProperty:> ::=
+	(after <Time>)|
+	(before <Time>)|
+	includeeleted|
+	includehidden|
+	(query <QueryCalendar>)|
+	(updatedmin <Time>)
+
+<EventDisplayProperty> ::=
+	(timezone <TimeZone>)
+
+gam calendar <CalendarItem> addevent [id <String>] <EventAttributes>+ [<EventNotificationAttribute>]
+gam calendar <CalendarItem> deleteevent id|eventid <EventID> [doit] [<EventNotificationAttribute>]
+gam calendar <CalendarItem> moveevent id|eventid <EventID> [doit] [<EventNotificationAttribute>]
+gam calendar <CalendarItem> updateevent <EventID> <EventUpdateAttributes>+ [<EventNotificationAttribute>]
 gam calendar <CalendarItem> wipe
+gam calendar <CalendarItem> printevents <EventSelectProperty>* <EventDisplayProperty>* [todrive]
 
 <CalendarSettings> ::=
 	summary <String>|
@@ -954,11 +1067,11 @@ gam calendar <CalendarItem> wipe
 gam calendar <CalendarItem> modify <CalendarSettings>+
 
 gam update cros <CrOSEntity> (<CrOSAttributes>+)|(action deprovision_same_model_replace|deprovision_different_model_replace|deprovision_retiring_device|disable|reenable [acknowledge_device_touch_requirement])
-gam info cros <CrOSEntity> [nolists] [listlimit <Number>] [start <Date>] [end <Date>]
+gam info cros <CrOSEntity> [guessaue] [nolists] [listlimit <Number>] [start <Date>] [end <Date>]
 	[basic|full|allfields] <CrOSFieldName>* [fields <CrOSFieldNameList>] [downloadfile latest|<Time>] [targetfolder <FilePath>]
 
 gam print cros [todrive] [(query <QueryCrOS>)|(queries <QueryCrOSList>)] [limittoou <OrgUnitItem>]
-	[orderby <CrOSOrderByFieldName> [ascending|descending]] [nolists|<CrOSListFieldName>*] [listlimit <Number>] [start <Date>] [end <Date>]
+	[orderby <CrOSOrderByFieldName> [ascending|descending]] [guessaue] [nolists|<CrOSListFieldName>*] [listlimit <Number>] [start <Date>] [end <Date>]
 	[basic|full|allfields] <CrOSFieldName>* [fields <CrOSFieldNameList>] [sortheaders]
 gam <CrOSTypeEntity> print
 
@@ -1001,14 +1114,14 @@ The listlimit <Number> argument limits the number of recent users, time ranges a
 The start <Date> and end <Date> arguments filter the time ranges.
 Delimiter defaults to comma.
 
-gam update mobile <MobileID> action <MobileAction>
+gam update mobile <MobileID>|query:<QueryMobile> action <MobileAction> [doit] [if_users|match_users <UserTypeEntity>]
 gam delete mobile <MobileID>
 gam info mobile <MobileID>
 gam print mobile [todrive] [(query <QueryMobile>)|(queries <QueryMobileList>)] [basic|full] [orderby <MobileOrderByFieldName> [ascending|descending]]
 	fields <MobileFieldNameList>] [delimiter <Character>] [appslimit <Number>] [listlimit <Number>]
 
 gam create group <EmailAddress> <GroupAttributes>*
-gam update group <GroupItem> [admincreated <Boolean>] [email <EmailAddress>] <GroupAttributes>*
+gam update group <GroupItem> [email <EmailAddress>] <GroupAttributes>*
 gam update group <GroupItem> add [owner|manager|member] [notsuspended|suspended] [allmail|daily|digest|none|nomail] <UserTypeEntity>
 gam update group <GroupItem> delete|remove [owner|manager|member] <UserTypeEntity>
 gam update group <GroupItem> sync [owner|manager|member] [notsuspended|suspended] [allmail|daily|digest|none|nomail] <UserTypeEntity>
@@ -1026,6 +1139,7 @@ gam info member <UserItem> <GroupItem>
 gam print group-members|groups-members [todrive]
 	([domain <DomainName>] ([member <UserItem>]|[query <QueryGroup>]))|[group|group_ns|group_susp <GroupItem>] [notsuspended|suspended]
 	[roles <GroupRoleList>] [membernames] [fields <MembersFieldNameList>]
+	[includederivedmembership]
 
 gam print licenses [todrive] [(products|product <ProductIDList>)|(skus|sku <SKUIDList>)|allskus|gsuite] [countsonly]
 gam show license|licenses|licence|licences [(products|product <ProductIDList>)|(skus|sku <SKUIDList>)|allskus|gsuite]
@@ -1045,7 +1159,7 @@ gam create resource <ResourceID> <Name> <ResourceAttributes>*
 gam update resource <ResourceID> <ResourceAttributes>*
 gam delete resource <ResourceID>
 gam info resource <ResourceID>
-gam print resources [todrive] [allfields] <ResourceFieldName>*
+gam print resources [todrive] [allfields] <ResourceFieldName>* [query <String>]
 
 gam create schema|schemas <SchemaName> <SchemaFieldDefinition>+
 gam update schema <SchemaName> <SchemaFieldDefinition>* (deletefield <FieldName>)*
@@ -1126,9 +1240,11 @@ gam print printjobs [todrive] [printer|printerid <PrinterID>]
 gam create vaultexport|export matter <MatterItem> [name <name>] corpus <drive|mail|groups|hangouts_chat>
 	(accounts <EmailAddressList>) | (orgunit|ou <OrgUnitPath>) | (teamdrives <TeamDriveList>) | (rooms <ChatRoomList>) | everyone
 	[scope <all_data|held_data|unprocessed_data>]
-	[terms <terms>] [start|starttime <Date>|<Time>] [end|endtime <Date>|<Time>] [timezone <TimeZone>] [format mbox|pst]
-	[excludedrafts <Boolean>] [driveversiondate <Date>|<Time>] [includeteamdrives] [includerooms]
-	[includeaccessinfo <Boolean>]
+	[terms <terms>] [start|starttime <Date>|<Time>] [end|endtime <Date>|<Time>] [timezone <TimeZone>]
+	[excludedrafts <Boolean>] [format mbox|pst] [showconfidentialmodecontent <Boolean>]
+	[includerooms]
+	[driveversiondate <Date>|<Time>] [includeshareddrives|includeteamdrives] [includeaccessinfo <Boolean>]
+	[region any|europe|us]
 gam delete export <MatterItem> <ExportItem>
 gam info export <MatterItem> <ExportItem>
 gam print exports [todrive] [matters <MatterItemList>]
@@ -1154,7 +1270,7 @@ gam reopen vaultmatter|matter <MatterItem>
 gam delete vaultmatter|matter <MatterItem>
 gam undelete vaultmatter|matter <MatterItem>
 gam info vaultmatter|matter <MatterItem>
-gam print vaultmatters|matters [todrive] [basic|full]
+gam print vaultmatters|matters [todrive] [basic|full] [matterstate open|closed|deleted]
 
 gam <UserTypeEntity> delete|del asp|asps|applicationspecificpasswords all|<ASPIDList>
 gam <UserTypeEntity> show asps|asp|applicationspecificpasswords
@@ -1183,7 +1299,7 @@ gam <UserTypeEntity> show fileinfo <DriveFileID> [allfields|<DriveFieldName>*]
 gam <UserTypeEntity> show filerevisions <DriveFileID>
 gam <UserTypeEntity> show filetree [anyowner] (orderby <DriveOrderByFieldName> [ascending|descending])*
 
-gam <UserTypeEntity> create|add drivefile [drivefilename <DriveFileName>] <DriveFileAddAttributes>* [csv] [todrive]
+gam <UserTypeEntity> create|add drivefile [drivefilename <DriveFileName>] <DriveFileAddAttributes>* [csv] [todrive] [returnidonly]
 gam <UserTypeEntity> update drivefile (id <DriveFileID)|(drivefilename <DriveFileName>)|(query <QueryDriveFile) [copy] [newfilename <DriveFileName>] <DriveFileUpdateAttributes>*
 gam <UserTypeEntity> get drivefile (id <DriveFileID>)|(drivefilename <DriveFileName>)|(query <QueryDriveFile>)
 	[revision <Number>] [(format <FileFormatList>)|(csvsheet <String>)]
@@ -1238,6 +1354,21 @@ gam <UserTypeEntity> trash messages query <QueryGmail> [doit] [max_to_trash|max_
 gam <UserTypeEntity> untrash messages query <QueryGmail> [doit] [max_to_untrash|max_to_process <Number>]
 
 gam <UserTypeEntity> show gmailprofile [todrive]
+
+gam <UserTypeEntity> draftemail [recipient|to <EmailAddress>] [from <EmailAddress>]
+	[subject <String>] [(message <String>)|(file <FileName> [charset <Charset>])]
+gam <UserTypeEntity> importemail [recipient|to <EmailAddress>] [from <EmailAddress>]
+	[subject <String>] [(message <String>)|(file <FileName> [charset <Charset>])]
+	[labels <LabelNameList>] (header <String> <String>)*
+	[deleted] [date <Time>]
+	[nevercheckspam] [processforcalendar]
+gam <UserTypeEntity> insertemail [recipient|to <EmailAddress>] [from <EmailAddress>]
+	[subject <String>] [(message <String>)|(file <FileName> [charset <Charset>])]
+	[labels <LabelNameList>] (header <String> <String>)*
+	[deleted] [date <Time>]
+gam <UserTypeEntity> sendemail [recipient|to <EmailAddress>] [from <EmailAddress>]
+	[subject <String>] [(message <String>)|(file <FileName> [charset <Charset>])]
+	(header <String> <String>)* 
 
 gam <UserTypeEntity> create|add delegate|delegates <EmailAddress>
 gam <UserTypeEntity> delegate|delegates to <EmailAddress>

@@ -10,6 +10,7 @@ OPTIONS:
    -d      Directory where gam folder will be installed. Default is \$HOME/bin/
    -a      Architecture to install (i386, x86_64, x86_64_legacy, arm, arm64). Default is to detect your arch with "uname -m".
    -o      OS we are running (linux, macos). Default is to detect your OS with "uname -s".
+   -b      OS version. Default is to detect on MacOS and Linux.
    -l      Just upgrade GAM to latest version. Skips project creation and auth.
    -p      Profile update (true, false). Should script add gam command to environment. Default is true.
    -u      Admin user email address to use with GAM. Default is to prompt.
@@ -21,20 +22,23 @@ EOF
 target_dir="$HOME/bin"
 gamarch=$(uname -m)
 gamos=$(uname -s)
+osversion=""
 update_profile=true
 upgrade_only=false
 gamversion="latest"
 adminuser=""
 regularuser=""
-gam_glibc_vers="2.23 2.19 2.15"
+gam_glibc_vers="2.27 2.23"
+gam_macos_vers="10.14.6 10.13.6"
 
-while getopts "hd:a:o:lp:u:r:v:" OPTION
+while getopts "hd:a:o:b:lp:u:r:v:" OPTION
 do
      case $OPTION in
          h) usage; exit;;
          d) target_dir="$OPTARG";;
          a) gamarch="$OPTARG";;
          o) gamos="$OPTARG";;
+         b) osversion="$OPTARG";;
          l) upgrade_only=true;;
          p) update_profile="$OPTARG";;
          u) adminuser="$OPTARG";;
@@ -48,7 +52,7 @@ done
 target_dir=${target_dir%/}
 
 update_profile() {
-	[ -f "$1" ] || return 1
+	[ $2 -eq 1 ] || [ -f "$1" ] || return 1
 
 	grep -F "$alias_line" "$1" > /dev/null 2>&1
 	if [ $? -ne 0 ]; then
@@ -79,13 +83,26 @@ echo -e '\x1B[0m'
 
 version_gt()
 {
-test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
+# MacOS < 10.13 doesn't support sort -V
+echo "" | sort -V > /dev/null 2>&1
+vsort_failed=$?
+if [ "${1}" = "${2}" ]; then
+  true
+elif (( $vsort_failed != 0 )); then
+  false
+else
+  test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
+fi
 }
 
 case $gamos in
   [lL]inux)
     gamos="linux"
-    this_glibc_ver=$(ldd --version | awk '/ldd/{print $NF}')
+    if [ "$osversion" == "" ]; then
+      this_glibc_ver=$(ldd --version | awk '/ldd/{print $NF}')
+    else
+      this_glibc_ver=$osversion
+    fi
     echo "This Linux distribution uses glibc $this_glibc_ver"
     useglibc="legacy"
     for gam_glibc_ver in $gam_glibc_vers; do
@@ -97,24 +114,33 @@ case $gamos in
     done
     case $gamarch in
       x86_64) gamfile="linux-x86_64-$useglibc.tar.xz";;
-      i?86) gamfile="linux-i686.tar.xz";;
-      arm|armv7l) gamfile="linux-armv7l.tar.xz";;
-      arm64|aarch64) gamfile="linux-aarch64.tar.xz";;
+      arm64|aarch64) gamfile="linux-arm64-$useglibc.tar.xz";;
       *)
-        echo_red "ERROR: this installer currently only supports i386, x86_64, arm and arm64 Linux. Looks like you're running on $gamarch. Exiting."
+        echo_red "ERROR: this installer currently only supports x86_64 and arm64 Linux. Looks like you're running on $gamarch. Exiting."
         exit
     esac
     ;;
   [Mm]ac[Oo][sS]|[Dd]arwin)
-    osver=$(sw_vers -productVersion | awk -F'.' '{print $2}')
-    if (( $osver < 13 )); then
-      echo_red "ERROR: GAM currently requires MacOS 10.13 or newer. You are running MacOS 10.$osver. Please upgrade." 
-      exit
-    else
-      echo_green "Good, you're running MacOS 10.$osver..."
-    fi
     gamos="macos"
-    gamfile="macos-x86_64.tar.xz"
+    if [ "$osversion" == "" ]; then
+      this_macos_ver=$(sw_vers -productVersion)
+    else
+      this_macos_ver=$osversion
+    fi
+    echo "You are running MacOS $this_macos_ver"
+    use_macos_ver=""
+    for gam_macos_ver in $gam_macos_vers; do
+      if version_gt $this_macos_ver $gam_macos_ver; then
+        use_macos_ver="MacOS$gam_macos_ver"
+        echo_green "Using GAM compiled on $use_macos_ver"
+        break
+      fi
+    done
+    if [ "$use_macos_ver" == "" ]; then
+      echo_red "Sorry, you need to be running at least MacOS $gam_macos_ver to run GAM"
+      exit
+    fi
+    gamfile="macos-x86_64-$use_macos_ver.tar.xz"
     ;;
   *)
     echo_red "Sorry, this installer currently only supports Linux and MacOS. Looks like you're runnning on $gamos. Exiting."
@@ -161,11 +187,16 @@ try:
 except KeyError:
   print('ERROR: assets value not found in JSON value of:\n\n%s' % release)"
 
-pycmd="python"
+pycmd="python3"
 $pycmd -V >/dev/null 2>&1
 rc=$?
 if (( $rc != 0 )); then
-  pycmd="python3"
+  pycmd="python"
+fi
+$pycmd -V >/dev/null 2>&1
+rc=$?
+if (( $rc != 0 )); then
+  pycmd="python2"
 fi
 $pycmd -V >/dev/null 2>&1
 rc=$?
@@ -203,9 +234,23 @@ else
   echo_green "Finished extracting GAM archive."
 fi
 
+# Update profile to add gam command
+if [ "$update_profile" = true ]; then
+  alias_line="gam() { \"$target_dir/gam/gam\" \"\$@\" ; }"
+  if [ "$gamos" == "linux" ]; then
+    update_profile "$HOME/.bash_aliases" 0 || update_profile "$HOME/.bash_profile" 0 || update_profile "$HOME/.bashrc" 0
+    update_profile "$HOME/.zshrc" 0
+  elif [ "$gamos" == "macos" ]; then
+    update_profile "$HOME/.bash_aliases" 0 || update_profile "$HOME/.bash_profile" 0 || update_profile "$HOME/.bashrc" 0 || update_profile "$HOME/.profile" 1
+    update_profile "$HOME/.zshrc" 0
+  fi
+else
+  echo_yellow "skipping profile update."
+fi
+
 if [ "$upgrade_only" = true ]; then
   echo_green "Here's information about your GAM upgrade:"
-  "$target_dir/gam/gam" version
+  "$target_dir/gam/gam" version extended
   rc=$?
   if (( $rc != 0 )); then
     echo_red "ERROR: Failed running GAM for the first time with $rc. Please report this error to GAM mailing list. Exiting."
@@ -214,18 +259,6 @@ if [ "$upgrade_only" = true ]; then
 
   echo_green "GAM upgrade complete!"
   exit
-fi
-
-# Update profile to add gam command
-if [ "$update_profile" = true ]; then
-  alias_line="gam() { \"$target_dir/gam/gam\" \"\$@\" ; }"
-  if [ "$gamos" == "linux" ]; then
-    update_profile "$HOME/.bashrc" || update_profile "$HOME/.bash_profile"
-  elif [ "$gamos" == "macos" ]; then
-    update_profile "$HOME/.profile" || update_profile "$HOME/.bash_profile"
-  fi
-else
-  echo_yellow "skipping profile update."
 fi
 
 while true; do
@@ -328,7 +361,7 @@ while $project_created; do
 done
 
 echo_green "Here's information about your new GAM installation:"
-"$target_dir/gam/gam" version
+"$target_dir/gam/gam" version extended
 rc=$?
 if (( $rc != 0 )); then
   echo_red "ERROR: Failed running GAM for the first time with $rc. Please report this error to GAM mailing list. Exiting."

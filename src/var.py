@@ -1,24 +1,24 @@
 import os
+import ssl
+import string
 import sys
 import platform
 import re
 
 gam_author = 'Jay Lee <jay0lee@gmail.com>'
-gam_version = '4.82'
+gam_version = '5.05'
 gam_license = 'Apache License 2.0 (http://www.apache.org/licenses/LICENSE-2.0)'
 
 GAM_URL = 'https://git.io/gam'
-GAM_INFO = 'GAM {0} - {1} / {2} / Python {3}.{4}.{5} {6} / {7} {8} /'.format(gam_version, GAM_URL,
-                                                                              gam_author,
-                                                                              sys.version_info[0], sys.version_info[1],
-                                                                              sys.version_info[2], sys.version_info[3],
-                                                                              platform.platform(), platform.machine())
+GAM_INFO = (f'GAM {gam_version} - {GAM_URL} / {gam_author} / '
+            f'Python {platform.python_version()} {sys.version_info.releaselevel} / '
+            f'{platform.platform()} {platform.machine()}')
 
 GAM_RELEASES = 'https://github.com/jay0lee/GAM/releases'
 GAM_WIKI = 'https://github.com/jay0lee/GAM/wiki'
 GAM_ALL_RELEASES = 'https://api.github.com/repos/jay0lee/GAM/releases'
 GAM_LATEST_RELEASE = GAM_ALL_RELEASES+'/latest'
-GAM_PROJECT_APIS = 'https://raw.githubusercontent.com/jay0lee/GAM/master/src/project-apis.txt'
+GAM_PROJECT_FILEPATH = 'https://raw.githubusercontent.com/jay0lee/GAM/master/src/'
 
 true_values = ['on', 'yes', 'enabled', 'true', '1']
 false_values = ['off', 'no', 'disabled', 'false', '0']
@@ -37,6 +37,8 @@ FN_LAST_UPDATE_CHECK_TXT = 'lastupdatecheck.txt'
 MY_CUSTOMER = 'my_customer'
 # See https://support.google.com/drive/answer/37603
 MAX_GOOGLE_SHEET_CELLS = 5000000
+MAX_LOCAL_GOOGLE_TIME_OFFSET = 30
+
 SKUS = {
   '1010010001': {
     'product': '101001', 'aliases': ['identity', 'cloudidentity'], 'displayName': 'Cloud Identity'},
@@ -45,7 +47,7 @@ SKUS = {
   '1010310002': {
     'product': '101031', 'aliases': ['gsefe', 'e4e', 'gsuiteenterpriseeducation'], 'displayName': 'G Suite Enterprise for Education'},
   '1010310003': {
-    'product': '101031', 'aliases': ['gsefes', 'e4es', 'gsuiteenterpriseeducationstudent'], 'displayName': 'G Suite Enterprise for Education Student'},
+    'product': '101031', 'aliases': ['gsefes', 'e4es', 'gsuiteenterpriseeducationstudent'], 'displayName': 'G Suite Enterprise for Education (Student)'},
   '1010330003': {
     'product': '101033', 'aliases': ['gvstarter', 'voicestarter', 'googlevoicestarter'], 'displayName': 'Google Voice Starter'},
   '1010330004': {
@@ -61,11 +63,15 @@ SKUS = {
   'Google-Apps-For-Postini': {
     'product': 'Google-Apps', 'aliases': ['gams', 'postini', 'gsuitegams', 'gsuitepostini', 'gsuitemessagesecurity'], 'displayName': 'G Suite Message Security'},
   'Google-Apps-Lite': {
-    'product': 'Google-Apps', 'aliases': ['gal', 'lite', 'gsuitelite'], 'displayName': 'G Suite Lite'},
+    'product': 'Google-Apps', 'aliases': ['gal', 'gsl', 'lite', 'gsuitelite'], 'displayName': 'G Suite Lite'},
   'Google-Apps-Unlimited': {
-    'product': 'Google-Apps', 'aliases': ['gau', 'unlimited', 'gsuitebusiness'], 'displayName': 'G Suite Business'},
+    'product': 'Google-Apps', 'aliases': ['gau', 'gsb', 'unlimited', 'gsuitebusiness'], 'displayName': 'G Suite Business'},
   '1010020020': {
-    'product': 'Google-Apps', 'aliases': ['gae', 'enterprise', 'gsuiteenterprise'], 'displayName': 'G Suite Enterprise'},
+    'product': 'Google-Apps', 'aliases': ['gae', 'gse', 'enterprise', 'gsuiteenterprise'], 'displayName': 'G Suite Enterprise'},
+  '1010340002': {
+    'product': '101034', 'aliases': ['gsbau', 'businessarchived', 'gsuitebusinessarchived'], 'displayName': 'G Suite Business Archived'},
+  '1010340001': {
+    'product': '101034', 'aliases': ['gseau', 'enterprisearchived', 'gsuiteenterprisearchived'], 'displayName': 'G Suite Enterprise Archived'},
   '1010060001': {
     'product': 'Google-Apps', 'aliases': ['d4e', 'driveenterprise', 'drive4enterprise'], 'displayName': 'Drive Enterprise'},
   'Google-Drive-storage-20GB': {
@@ -96,6 +102,19 @@ SKUS = {
     'product': 'Google-Chrome-Device-Management', 'aliases': ['chrome', 'cdm', 'googlechromedevicemanagement'], 'displayName': 'Google Chrome Device Management'}
   }
 
+PRODUCTID_NAME_MAPPINGS = {
+  '101001': 'Cloud Identity Free',
+  '101005': 'Cloud Identity Premium',
+  '101031': 'G Suite Enterprise for Education',
+  '101033': 'Google Voice',
+  '101034': 'G Suite Archived',
+  'Google-Apps': 'G Suite',
+  'Google-Chrome-Device-Management': 'Google Chrome Device Management',
+  'Google-Coordinate': 'Google Coordinate',
+  'Google-Drive-storage': 'Google Drive Storage',
+  'Google-Vault': 'Google Vault',
+  }
+
 # Legacy APIs that use v1 discovery. Newer APIs should all use v2.
 V1_DISCOVERY_APIS = {
   'admin',
@@ -117,33 +136,40 @@ API_VER_MAPPING = {
   'calendar': 'v3',
   'classroom': 'v1',
   'cloudprint': 'v2',
+  'cloudresourcemanager': 'v2',
+  'cloudresourcemanagerv1': 'v1',
   'datatransfer': 'datatransfer_v1',
   'directory': 'directory_v1',
   'drive': 'v2',
   'drive3': 'v3',
   'gmail': 'v1',
   'groupssettings': 'v1',
+  'iam': 'v1',
+  'iap': 'v1',
   'licensing': 'v1',
   'oauth2': 'v2',
   'pubsub': 'v1',
   'reports': 'reports_v1',
   'reseller': 'v1',
+  'servicemanagement': 'v1',
   'sheets': 'v4',
   'siteVerification': 'v1',
   'storage': 'v1',
   'vault': 'v1',
   }
 
+USERINFO_EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email'
+
 API_SCOPE_MAPPING = {
   'alertcenter': ['https://www.googleapis.com/auth/apps.alerts',],
   'appsactivity': ['https://www.googleapis.com/auth/activity',
-                    'https://www.googleapis.com/auth/drive',],
+                   'https://www.googleapis.com/auth/drive',],
   'calendar': ['https://www.googleapis.com/auth/calendar',],
   'drive': ['https://www.googleapis.com/auth/drive',],
   'drive3': ['https://www.googleapis.com/auth/drive',],
   'gmail': ['https://mail.google.com/',
-             'https://www.googleapis.com/auth/gmail.settings.basic',
-             'https://www.googleapis.com/auth/gmail.settings.sharing',],
+            'https://www.googleapis.com/auth/gmail.settings.basic',
+            'https://www.googleapis.com/auth/gmail.settings.sharing',],
   'sheets': ['https://www.googleapis.com/auth/spreadsheets',],
 }
 
@@ -208,6 +234,7 @@ DRIVEFILE_FIELDS_CHOICES_MAP = {
   'cancomment': 'canComment',
   'canreadrevisions': 'canReadRevisions',
   'copyable': 'copyable',
+  'copyrequireswriterpermission': 'copyRequiresWriterPermission',
   'createddate': 'createdDate',
   'createdtime': 'createdDate',
   'description': 'description',
@@ -357,18 +384,33 @@ GOOGLEDOC_VALID_EXTENSIONS_MAP = {
   MIMETYPE_GA_SPREADSHEET: ['.csv', '.ods', '.pdf', '.xlsx', '.zip'],
   }
 
-_MICROSOFT_FORMATS_LIST = [{'mime': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'ext': '.docx'},
-                           {'mime': 'application/vnd.openxmlformats-officedocument.wordprocessingml.template', 'ext': '.dotx'},
-                           {'mime': 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'ext': '.pptx'},
-                           {'mime': 'application/vnd.openxmlformats-officedocument.presentationml.template', 'ext': '.potx'},
-                           {'mime': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'ext': '.xlsx'},
-                           {'mime': 'application/vnd.openxmlformats-officedocument.spreadsheetml.template', 'ext': '.xltx'},
-                           {'mime': 'application/msword', 'ext': '.doc'},
-                           {'mime': 'application/msword', 'ext': '.dot'},
-                           {'mime': 'application/vnd.ms-powerpoint', 'ext': '.ppt'},
-                           {'mime': 'application/vnd.ms-powerpoint', 'ext': '.pot'},
-                           {'mime': 'application/vnd.ms-excel', 'ext': '.xls'},
-                           {'mime': 'application/vnd.ms-excel', 'ext': '.xlt'}]
+MACOS_CODENAMES = {
+  6:  'Snow Leopard',
+  7:  'Lion',
+  8:  'Mountain Lion',
+  9:  'Mavericks',
+  10: 'Yosemite',
+  11: 'El Capitan',
+  12: 'Sierra',
+  13: 'High Sierra',
+  14: 'Mojave',
+  15: 'Catalina'
+  }
+
+_MICROSOFT_FORMATS_LIST = [
+  {'mime': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'ext': '.docx'},
+  {'mime': 'application/vnd.openxmlformats-officedocument.wordprocessingml.template', 'ext': '.dotx'},
+  {'mime': 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'ext': '.pptx'},
+  {'mime': 'application/vnd.openxmlformats-officedocument.presentationml.template', 'ext': '.potx'},
+  {'mime': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'ext': '.xlsx'},
+  {'mime': 'application/vnd.openxmlformats-officedocument.spreadsheetml.template', 'ext': '.xltx'},
+  {'mime': 'application/msword', 'ext': '.doc'},
+  {'mime': 'application/msword', 'ext': '.dot'},
+  {'mime': 'application/vnd.ms-powerpoint', 'ext': '.ppt'},
+  {'mime': 'application/vnd.ms-powerpoint', 'ext': '.pot'},
+  {'mime': 'application/vnd.ms-excel', 'ext': '.xls'},
+  {'mime': 'application/vnd.ms-excel', 'ext': '.xlt'}
+  ]
 
 DOCUMENT_FORMATS_MAP = {
   'csv': [{'mime': 'text/csv', 'ext': '.csv'}],
@@ -383,7 +425,7 @@ DOCUMENT_FORMATS_MAP = {
   'mht': [{'mime': 'message/rfc822', 'ext': 'mht'}],
   'odp': [{'mime': 'application/vnd.oasis.opendocument.presentation', 'ext': '.odp'}],
   'ods': [{'mime': 'application/x-vnd.oasis.opendocument.spreadsheet', 'ext': '.ods'},
-           {'mime': 'application/vnd.oasis.opendocument.spreadsheet', 'ext': '.ods'}],
+          {'mime': 'application/vnd.oasis.opendocument.spreadsheet', 'ext': '.ods'}],
   'odt': [{'mime': 'application/vnd.oasis.opendocument.text', 'ext': '.odt'}],
   'pdf': [{'mime': 'application/pdf', 'ext': '.pdf'}],
   'png': [{'mime': 'image/png', 'ext': '.png'}],
@@ -394,7 +436,7 @@ DOCUMENT_FORMATS_MAP = {
   'rtf': [{'mime': 'application/rtf', 'ext': '.rtf'}],
   'svg': [{'mime': 'image/svg+xml', 'ext': '.svg'}],
   'tsv': [{'mime': 'text/tab-separated-values', 'ext': '.tsv'},
-           {'mime': 'text/tsv', 'ext': '.tsv'}],
+          {'mime': 'text/tsv', 'ext': '.tsv'}],
   'txt': [{'mime': 'text/plain', 'ext': '.txt'}],
   'xls': [{'mime': 'application/vnd.ms-excel', 'ext': '.xls'}],
   'xlt': [{'mime': 'application/vnd.ms-excel', 'ext': '.xlt'}],
@@ -405,9 +447,26 @@ DOCUMENT_FORMATS_MAP = {
   'microsoft': _MICROSOFT_FORMATS_LIST,
   'micro$oft': _MICROSOFT_FORMATS_LIST,
   'openoffice': [{'mime': 'application/vnd.oasis.opendocument.presentation', 'ext': '.odp'},
-                  {'mime': 'application/x-vnd.oasis.opendocument.spreadsheet', 'ext': '.ods'},
-                  {'mime': 'application/vnd.oasis.opendocument.spreadsheet', 'ext': '.ods'},
-                  {'mime': 'application/vnd.oasis.opendocument.text', 'ext': '.odt'}],
+                 {'mime': 'application/x-vnd.oasis.opendocument.spreadsheet', 'ext': '.ods'},
+                 {'mime': 'application/vnd.oasis.opendocument.spreadsheet', 'ext': '.ods'},
+                 {'mime': 'application/vnd.oasis.opendocument.text', 'ext': '.odt'}],
+  }
+
+REFRESH_PERM_ERRORS = [
+  'invalid_grant: reauth related error (rapt_required)', # no way to reauth today
+  'invalid_grant: Token has been expired or revoked.',
+  ]
+
+DNS_ERROR_CODES_MAP = {
+  1: 'DNS Query Format Error',
+  2: 'Server failed to complete the DNS request',
+  3: 'Domain name does not exist',
+  4: 'Function not implemented',
+  5: 'The server refused to answer for the query',
+  6: 'Name that should not exist, does exist',
+  7: 'RRset that should not exist, does exist',
+  8: 'Server not authoritative for the zone',
+  9: 'Name not in zone'
   }
 
 EMAILSETTINGS_OLD_NEW_OLD_FORWARD_ACTION_MAP = {
@@ -450,6 +509,12 @@ RT_OPEN_PATTERN = re.compile(r'{RT}')
 RT_CLOSE_PATTERN = re.compile(r'{/RT}')
 RT_STRIP_PATTERN = re.compile(r'(?s){RT}.*?{/RT}')
 RT_TAG_REPLACE_PATTERN = re.compile(r'{(.*?)}')
+
+LOWERNUMERIC_CHARS = string.ascii_lowercase+string.digits
+ALPHANUMERIC_CHARS = LOWERNUMERIC_CHARS+string.ascii_uppercase
+URL_SAFE_CHARS = ALPHANUMERIC_CHARS+'-._~'
+PASSWORD_SAFE_CHARS = ALPHANUMERIC_CHARS+string.punctuation+' '
+FILENAME_SAFE_CHARS = ALPHANUMERIC_CHARS+'-_.() '
 
 FILTER_ADD_LABEL_TO_ARGUMENT_MAP = {
   'IMPORTANT': 'important',
@@ -496,17 +561,21 @@ CROS_ARGUMENT_TO_PROPERTY_MAP = {
   'annotateduser': ['annotatedUser',],
   'asset': ['annotatedAssetId',],
   'assetid': ['annotatedAssetId',],
+  'autoupdateexpiration': ['autoUpdateExpiration',],
   'bootmode': ['bootMode',],
   'cpustatusreports': ['cpuStatusReports',],
   'devicefiles': ['deviceFiles',],
   'deviceid': ['deviceId',],
+  'dockmacaddress': ['dockMacAddress',],
   'diskvolumereports': ['diskVolumeReports',],
   'ethernetmacaddress': ['ethernetMacAddress',],
+  'ethernetmacaddress0': ['ethernetMacAddress0',],
   'firmwareversion': ['firmwareVersion',],
   'lastenrollmenttime': ['lastEnrollmentTime',],
   'lastsync': ['lastSync',],
   'location': ['annotatedLocation',],
   'macaddress': ['macAddress',],
+  'manufacturedate': ['manufactureDate',],
   'meid': ['meid',],
   'model': ['model',],
   'notes': ['notes',],
@@ -548,12 +617,16 @@ CROS_SCALAR_PROPERTY_PRINT_ORDER = [
   'osVersion',
   'bootMode',
   'meid',
+  'dockMacAddress',
   'ethernetMacAddress',
+  'ethernetMacAddress0',
   'macAddress',
   'systemRamTotal',
   'lastEnrollmentTime',
   'orderNumber',
+  'manufactureDate',
   'supportEndDate',
+  'autoUpdateExpiration',
   'tpmVersionInfo',
   'willAutoRenew',
   ]
@@ -572,28 +645,76 @@ CROS_END_ARGUMENTS = ['end', 'enddate']
 CROS_TPM_VULN_VERSIONS = ['41f', '420', '628', '8520',]
 CROS_TPM_FIXED_VERSIONS = ['422', '62b', '8521',]
 
-COLLABORATIVE_ACL_CHOICES = {
-  'members': 'ALL_MEMBERS',
-  'managersonly': 'MANAGERS_ONLY',
-  'managers': 'OWNERS_AND_MANAGERS',
-  'owners': 'OWNERS_ONLY',
-  'none': 'NONE',
-  }
+COLLABORATIVE_INBOX_ATTRIBUTES = [
+  'whoCanAddReferences',
+  'whoCanAssignTopics',
+  'whoCanEnterFreeFormTags',
+  'whoCanMarkDuplicate',
+  'whoCanMarkFavoriteReplyOnAnyTopic',
+  'whoCanMarkFavoriteReplyOnOwnTopic',
+  'whoCanMarkNoResponseNeeded',
+  'whoCanModifyTagsAndCategories',
+  'whoCanTakeTopics',
+  'whoCanUnassignTopic',
+  'whoCanUnmarkFavoriteReplyOnAnyTopic',
+  'favoriteRepliesOnTop',
+  ]
 
-COLLABORATIVE_INBOX_ATTRIBUTES = {
-  'whoCanAddReferences': 'acl',
-  'whoCanAssignTopics': 'acl',
-  'whoCanEnterFreeFormTags': 'acl',
-  'whoCanMarkDuplicate': 'acl',
-  'whoCanMarkFavoriteReplyOnAnyTopic': 'acl',
-  'whoCanMarkFavoriteReplyOnOwnTopic': 'acl',
-  'whoCanMarkNoResponseNeeded': 'acl',
-  'whoCanModifyTagsAndCategories': 'acl',
-  'whoCanTakeTopics': 'acl',
-  'whoCanUnassignTopic': 'acl',
-  'whoCanUnmarkFavoriteReplyOnAnyTopic': 'acl',
-  'favoriteRepliesOnTop': True,
-  }
+GROUP_SETTINGS_LIST_ATTRIBUTES = set([
+  # ACL choices
+  'whoCanAdd',
+  'whoCanApproveMembers',
+  'whoCanApproveMessages',
+  'whoCanAssignTopics',
+  'whoCanAssistContent',
+  'whoCanBanUsers',
+  'whoCanContactOwner',
+  'whoCanDeleteAnyPost',
+  'whoCanDeleteTopics',
+  'whoCanDiscoverGroup',
+  'whoCanEnterFreeFormTags',
+  'whoCanHideAbuse',
+  'whoCanInvite',
+  'whoCanJoin',
+  'whoCanLeaveGroup',
+  'whoCanLockTopics',
+  'whoCanMakeTopicsSticky',
+  'whoCanMarkDuplicate',
+  'whoCanMarkFavoriteReplyOnAnyTopic',
+  'whoCanMarkFavoriteReplyOnOwnTopic',
+  'whoCanMarkNoResponseNeeded',
+  'whoCanModerateContent',
+  'whoCanModerateMembers',
+  'whoCanModifyMembers',
+  'whoCanModifyTagsAndCategories',
+  'whoCanMoveTopicsIn',
+  'whoCanMoveTopicsOut',
+  'whoCanPostAnnouncements',
+  'whoCanPostMessage',
+  'whoCanTakeTopics',
+  'whoCanUnassignTopic',
+  'whoCanUnmarkFavoriteReplyOnAnyTopic',
+  'whoCanViewGroup',
+  'whoCanViewMembership',
+  # Miscellaneous hoices
+  'messageModerationLevel',
+  'replyTo',
+  'spamModerationLevel',
+  ])
+GROUP_SETTINGS_BOOLEAN_ATTRIBUTES = set([
+  'allowExternalMembers',
+  'allowGoogleCommunication',
+  'allowWebPosting',
+  'archiveOnly',
+  'enableCollaborativeInbox',
+  'favoriteRepliesOnTop',
+  'includeCustomFooter',
+  'includeInGlobalAddressList',
+  'isArchived',
+  'membersCanPostAsTheGroup',
+  'sendMessageDenyNotification',
+  'showInGroupDirectory',
+  ])
 
 #
 # Global variables
@@ -604,6 +725,8 @@ COLLABORATIVE_INBOX_ATTRIBUTES = {
 GM_SYSEXITRC = 'sxrc'
 # Path to gam
 GM_GAM_PATH = 'gpth'
+# Python source, PyInstaller or StaticX?
+GM_GAM_TYPE = 'gtyp'
 # Are we on Windows?
 GM_WINDOWS = 'wndo'
 # Encodings
@@ -647,6 +770,7 @@ _FN_OAUTH2_TXT = 'oauth2.txt'
 GM_Globals = {
   GM_SYSEXITRC: 0,
   GM_GAM_PATH: None,
+  GM_GAM_TYPE: None,
   GM_WINDOWS: os.name == 'nt',
   GM_SYS_ENCODING: _DEFAULT_CHARSET,
   GM_EXTRA_ARGS_DICT:  {'prettyPrint': False},
@@ -669,8 +793,6 @@ GM_Globals = {
 #
 # Global variables defined by environment variables/signal files
 #
-# When retrieving lists of Google Drive activities from API, how many should be retrieved in each chunk
-GC_ACTIVITY_MAX_RESULTS = 'activity_max_results'
 # Automatically generate gam batch command if number of users specified in gam users xxx command exceeds this number
 # Default: 0, don't automatically generate gam batch commands
 GC_AUTO_BATCH_MIN = 'auto_batch_min'
@@ -690,19 +812,17 @@ GC_CONFIG_DIR = 'config_dir'
 GC_CUSTOMER_ID = 'customer_id'
 # If debug_level > 0: extra_args[u'prettyPrint'] = True, httplib2.debuglevel = gam_debug_level, appsObj.debug = True
 GC_DEBUG_LEVEL = 'debug_level'
-# When retrieving lists of ChromeOS/Mobile devices from API, how many should be retrieved in each chunk
-GC_DEVICE_MAX_RESULTS = 'device_max_results'
+# ID Token decoded from OAuth 2.0 refresh token response. Includes hd (domain) and email of authorized user
+GC_DECODED_ID_TOKEN = 'decoded_id_token'
 # Domain obtained from gam.cfg or oauth2.txt
 GC_DOMAIN = 'domain'
 # Google Drive download directory
 GC_DRIVE_DIR = 'drive_dir'
-# When retrieving lists of Drive files/folders from API, how many should be retrieved in each chunk
-GC_DRIVE_MAX_RESULTS = 'drive_max_results'
-# When retrieving lists of Google Group members from API, how many should be retrieved in each chunk
-GC_MEMBER_MAX_RESULTS = 'member_max_results'
 # If no_browser is False, writeCSVfile won't open a browser when todrive is set
 # and doRequestOAuth prints a link and waits for the verification code when oauth2.txt is being created
 GC_NO_BROWSER = 'no_browser'
+# oauth_browser forces usage of web server OAuth flow that proved problematic.
+GC_OAUTH_BROWSER = 'oauth_browser'
 # Disable GAM API caching
 GC_NO_CACHE = 'no_cache'
 # Disable GAM update check
@@ -721,10 +841,10 @@ GC_SHOW_COUNTS_MIN = 'show_counts_min'
 GC_SHOW_GETTINGS = 'show_gettings'
 # GAM config directory containing json discovery files
 GC_SITE_DIR = 'site_dir'
-# When retrieving lists of Users from API, how many should be retrieved in each chunk
-GC_USER_MAX_RESULTS = 'user_max_results'
 # CSV Columns GAM should show on CSV output
 GC_CSV_HEADER_FILTER = 'csv_header_filter'
+# CSV Columns GAM should not show on CSV output
+GC_CSV_HEADER_DROP_FILTER = 'csv_header_drop_filter'
 # CSV Rows GAM should filter
 GC_CSV_ROW_FILTER = 'csv_row_filter'
 # Minimum TLS Version required for HTTPS connections
@@ -734,8 +854,8 @@ GC_TLS_MAX_VERSION = 'tls_max_ver'
 # Path to certificate authority file for validating TLS hosts
 GC_CA_FILE = 'ca_file'
 
+tls_min = "TLSv1_2" if hasattr(ssl.SSLContext(), "minimum_version") else None
 GC_Defaults = {
-  GC_ACTIVITY_MAX_RESULTS: 100,
   GC_AUTO_BATCH_MIN: 0,
   GC_BATCH_SIZE: 50,
   GC_CACHE_DIR: '',
@@ -745,25 +865,24 @@ GC_Defaults = {
   GC_CONFIG_DIR: '',
   GC_CUSTOMER_ID: MY_CUSTOMER,
   GC_DEBUG_LEVEL: 0,
-  GC_DEVICE_MAX_RESULTS: 500,
+  GC_DECODED_ID_TOKEN: '',
   GC_DOMAIN: '',
   GC_DRIVE_DIR: '',
-  GC_DRIVE_MAX_RESULTS: 1000,
-  GC_MEMBER_MAX_RESULTS: 200,
   GC_NO_BROWSER: False,
   GC_NO_CACHE: False,
   GC_NO_UPDATE_CHECK: False,
   GC_NUM_THREADS: 25,
+  GC_OAUTH_BROWSER: False,
   GC_OAUTH2_TXT: _FN_OAUTH2_TXT,
   GC_OAUTH2SERVICE_JSON: _FN_OAUTH2SERVICE_JSON,
   GC_SECTION: '',
   GC_SHOW_COUNTS_MIN: 0,
   GC_SHOW_GETTINGS: True,
   GC_SITE_DIR: '',
-  GC_USER_MAX_RESULTS: 500,
   GC_CSV_HEADER_FILTER: '',
+  GC_CSV_HEADER_DROP_FILTER: '',
   GC_CSV_ROW_FILTER: '',
-  GC_TLS_MIN_VERSION: 'TLSv1_2',
+  GC_TLS_MIN_VERSION: tls_min,
   GC_TLS_MAX_VERSION: None,
   GC_CA_FILE: None,
   }
@@ -785,7 +904,6 @@ GC_VAR_TYPE = 'type'
 GC_VAR_LIMITS = 'lmit'
 
 GC_VAR_INFO = {
-  GC_ACTIVITY_MAX_RESULTS: {GC_VAR_TYPE: GC_TYPE_INTEGER, GC_VAR_LIMITS: (1, 500)},
   GC_AUTO_BATCH_MIN: {GC_VAR_TYPE: GC_TYPE_INTEGER, GC_VAR_LIMITS: (0, None)},
   GC_BATCH_SIZE: {GC_VAR_TYPE: GC_TYPE_INTEGER, GC_VAR_LIMITS: (1, 1000)},
   GC_CACHE_DIR: {GC_VAR_TYPE: GC_TYPE_DIRECTORY},
@@ -795,23 +913,22 @@ GC_VAR_INFO = {
   GC_CONFIG_DIR: {GC_VAR_TYPE: GC_TYPE_DIRECTORY},
   GC_CUSTOMER_ID: {GC_VAR_TYPE: GC_TYPE_STRING},
   GC_DEBUG_LEVEL: {GC_VAR_TYPE: GC_TYPE_INTEGER, GC_VAR_LIMITS: (0, None)},
-  GC_DEVICE_MAX_RESULTS: {GC_VAR_TYPE: GC_TYPE_INTEGER, GC_VAR_LIMITS: (1, 1000)},
+  GC_DECODED_ID_TOKEN: {GC_VAR_TYPE: GC_TYPE_STRING},
   GC_DOMAIN: {GC_VAR_TYPE: GC_TYPE_STRING},
   GC_DRIVE_DIR: {GC_VAR_TYPE: GC_TYPE_DIRECTORY},
-  GC_DRIVE_MAX_RESULTS: {GC_VAR_TYPE: GC_TYPE_INTEGER, GC_VAR_LIMITS: (1, 1000)},
-  GC_MEMBER_MAX_RESULTS: {GC_VAR_TYPE: GC_TYPE_INTEGER, GC_VAR_LIMITS: (1, 10000)},
   GC_NO_BROWSER: {GC_VAR_TYPE: GC_TYPE_BOOLEAN},
   GC_NO_CACHE: {GC_VAR_TYPE: GC_TYPE_BOOLEAN},
   GC_NO_UPDATE_CHECK: {GC_VAR_TYPE: GC_TYPE_BOOLEAN},
   GC_NUM_THREADS: {GC_VAR_TYPE: GC_TYPE_INTEGER, GC_VAR_LIMITS: (1, None)},
+  GC_OAUTH_BROWSER: {GC_VAR_TYPE: GC_TYPE_BOOLEAN},
   GC_OAUTH2_TXT: {GC_VAR_TYPE: GC_TYPE_FILE},
   GC_OAUTH2SERVICE_JSON: {GC_VAR_TYPE: GC_TYPE_FILE},
   GC_SECTION: {GC_VAR_TYPE: GC_TYPE_STRING},
   GC_SHOW_COUNTS_MIN: {GC_VAR_TYPE: GC_TYPE_INTEGER, GC_VAR_LIMITS: (0, None)},
   GC_SHOW_GETTINGS: {GC_VAR_TYPE: GC_TYPE_BOOLEAN},
   GC_SITE_DIR: {GC_VAR_TYPE: GC_TYPE_DIRECTORY},
-  GC_USER_MAX_RESULTS: {GC_VAR_TYPE: GC_TYPE_INTEGER, GC_VAR_LIMITS: (1, 500)},
   GC_CSV_HEADER_FILTER: {GC_VAR_TYPE: GC_TYPE_HEADERFILTER},
+  GC_CSV_HEADER_DROP_FILTER: {GC_VAR_TYPE: GC_TYPE_HEADERFILTER},
   GC_CSV_ROW_FILTER: {GC_VAR_TYPE: GC_TYPE_ROWFILTER},
   GC_TLS_MIN_VERSION: {GC_VAR_TYPE: GC_TYPE_STRING},
   GC_TLS_MAX_VERSION: {GC_VAR_TYPE: GC_TYPE_STRING},
@@ -840,54 +957,8 @@ MESSAGE_NO_TRANSFER_LACK_OF_DISK_SPACE = 'Cowardly refusing to perform migration
 MESSAGE_RESULTS_TOO_LARGE_FOR_GOOGLE_SPREADSHEET = 'Results are too large for Google Spreadsheets. Uploading as a regular CSV file.'
 MESSAGE_SERVICE_NOT_APPLICABLE = 'Service not applicable for this address: {0}. Please make sure service is enabled for user and run\n\ngam user <user> check serviceaccount\n\nfor further instructions'
 MESSAGE_INSTRUCTIONS_OAUTH2SERVICE_JSON = 'Please run\n\ngam create project\ngam user <user> check serviceaccount\n\nto create and configure a service account.'
-# oauth errors
-OAUTH2_TOKEN_ERRORS = [
-  'access_denied',
-  'access_denied: Requested client not authorized',
-  'internal_failure: Backend Error',
-  'invalid_grant: Bad Request',
-  'invalid_grant: Invalid email or User ID',
-  'invalid_grant: Not a valid email',
-  'invalid_request: Invalid impersonation prn email address',
-  'unauthorized_client: Client is unauthorized to retrieve access tokens using this method',
-  'unauthorized_client: Unauthorized client or scope in request',
-  ]
-#
-# callGAPI throw reasons
-GAPI_ABORTED = 'aborted'
-GAPI_AUTH_ERROR = 'authError'
-GAPI_BACKEND_ERROR = 'backendError'
-GAPI_BAD_REQUEST = 'badRequest'
-GAPI_CONDITION_NOT_MET = 'conditionNotMet'
-GAPI_CYCLIC_MEMBERSHIPS_NOT_ALLOWED = 'cyclicMembershipsNotAllowed'
-GAPI_DOMAIN_CANNOT_USE_APIS = 'domainCannotUseApis'
-GAPI_DOMAIN_NOT_FOUND = 'domainNotFound'
-GAPI_DUPLICATE = 'duplicate'
-GAPI_FAILED_PRECONDITION = 'failedPrecondition'
-GAPI_FORBIDDEN = 'forbidden'
-GAPI_GROUP_NOT_FOUND = 'groupNotFound'
-GAPI_INTERNAL_ERROR = 'internalError'
-GAPI_INVALID = 'invalid'
-GAPI_INVALID_ARGUMENT = 'invalidArgument'
-GAPI_INVALID_MEMBER = 'invalidMember'
-GAPI_MEMBER_NOT_FOUND = 'memberNotFound'
-GAPI_NOT_FOUND = 'notFound'
-GAPI_NOT_IMPLEMENTED = 'notImplemented'
-GAPI_PERMISSION_DENIED = 'permissionDenied'
-GAPI_QUOTA_EXCEEDED = 'quotaExceeded'
-GAPI_RATE_LIMIT_EXCEEDED = 'rateLimitExceeded'
-GAPI_RESOURCE_NOT_FOUND = 'resourceNotFound'
-GAPI_SERVICE_NOT_AVAILABLE = 'serviceNotAvailable'
-GAPI_SYSTEM_ERROR = 'systemError'
-GAPI_USER_NOT_FOUND = 'userNotFound'
-GAPI_USER_RATE_LIMIT_EXCEEDED = 'userRateLimitExceeded'
-#
-GAPI_DEFAULT_RETRY_REASONS = [GAPI_QUOTA_EXCEEDED, GAPI_RATE_LIMIT_EXCEEDED, GAPI_USER_RATE_LIMIT_EXCEEDED, GAPI_BACKEND_ERROR, GAPI_INTERNAL_ERROR]
-GAPI_GMAIL_THROW_REASONS = [GAPI_SERVICE_NOT_AVAILABLE]
-GAPI_GROUP_GET_THROW_REASONS = [GAPI_GROUP_NOT_FOUND, GAPI_DOMAIN_NOT_FOUND, GAPI_DOMAIN_CANNOT_USE_APIS, GAPI_FORBIDDEN, GAPI_BAD_REQUEST]
-GAPI_GROUP_GET_RETRY_REASONS = [GAPI_INVALID, GAPI_SYSTEM_ERROR]
-GAPI_MEMBERS_THROW_REASONS = [GAPI_GROUP_NOT_FOUND, GAPI_DOMAIN_NOT_FOUND, GAPI_DOMAIN_CANNOT_USE_APIS, GAPI_INVALID, GAPI_FORBIDDEN]
-GAPI_MEMBERS_RETRY_REASONS = [GAPI_SYSTEM_ERROR]
+MESSAGE_UPDATE_GAM_TO_64BIT = "You're running a 32-bit version of GAM on a 64-bit version of Windows, upgrade to a windows-x86_64 version of GAM"
+MESSAGE_YOUR_SYSTEM_TIME_DIFFERS_FROM_GOOGLE_BY = 'Your system time differs from %s by %s'
 
 USER_ADDRESS_TYPES = ['home', 'work', 'other']
 USER_EMAIL_TYPES = ['home', 'work', 'other']
@@ -1098,3 +1169,38 @@ LANGUAGE_CODES_MAP = {
   'ur': 'ur', 'uz': 'uz', 'vi': 'vi', 'wo': 'wo', 'xh': 'xh', 'yi': 'yi', 'yo': 'yo', #Urdu, Uzbek, Vietnamese, Wolof, Xhosa, Yiddish, Yoruba
   'zh-cn': 'zh-CN', 'zh-hk': 'zh-HK', 'zh-tw': 'zh-TW', 'zu': 'zu', #Chinese (Simplified), Chinese (Hong Kong/Traditional), Chinese (Taiwan/Traditional), Zulu
   }
+
+# maxResults exception values for API list calls. Should only be listed if:
+#   - discovery doc does not specify maximum value (we use maximum value if it
+#     exists, not this)
+#   - actual max API returns with maxResults=<bigNum>  > default API returns
+#     when maxResults isn't specified (we should use default otherwise by not
+#     setting maxResults)
+
+MAX_RESULTS_API_EXCEPTIONS = {
+  'calendar.acl.list': 250,
+  'calendar.calendarList.list': 250,
+  'calendar.events.list': 2500,
+  'calendar.settings.list': 250,
+  'directory.chromeosdevices.list': 200,
+  'drive.files.list': 1000,
+  }
+
+ONE_KILO_BYTES = 1000
+ONE_MEGA_BYTES = 1000000
+ONE_GIGA_BYTES = 1000000000
+
+DELTA_DATE_PATTERN = re.compile(r'^([+-])(\d+)([dwy])$')
+DELTA_DATE_FORMAT_REQUIRED = '(+|-)<Number>(d|w|y)'
+
+DELTA_TIME_PATTERN = re.compile(r'^([+-])(\d+)([mhdwy])$')
+DELTA_TIME_FORMAT_REQUIRED = '(+|-)<Number>(m|h|d|w|y)'
+
+YYYYMMDD_FORMAT = '%Y-%m-%d'
+YYYYMMDD_FORMAT_REQUIRED = 'yyyy-mm-dd'
+
+YYYYMMDDTHHMMSS_FORMAT_REQUIRED = 'yyyy-mm-ddThh:mm:ss[.fff](Z|(+|-(hh:mm)))'
+
+YYYYMMDD_PATTERN = re.compile(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+
+UID_PATTERN = re.compile(r'u?id: ?(.+)', re.IGNORECASE)
